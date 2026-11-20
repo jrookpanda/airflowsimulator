@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Room Airflow & Odor Dispersion Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-image: radial-gradient(circle at 15% 0%, rgba(14, 165, 233, 0.08), transparent 42%),
+                        radial-gradient(circle at 85% 10%, rgba(16, 185, 129, 0.06), transparent 38%);
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.65);
+    }
+    .modern-range {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      border-radius: 9999px;
+      background: rgba(51, 65, 85, 0.85);
+      outline: none;
+    }
+    .modern-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 9999px;
+      background: #38bdf8;
+      border: 2px solid #0f172a;
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+      transition: transform 0.12s ease, background-color 0.12s ease;
+    }
+    .modern-range::-webkit-slider-thumb:hover {
+      transform: scale(1.12);
+      background: #7dd3fc;
+    }
+    .pill-btn {
+      transition: all 0.15s ease;
+    }
+    .pill-btn:active {
+      transform: scale(0.97);
+    }
+    /* Custom subtle scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.05);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.35);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, 0.55);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-sky-500 selection:text-white overflow-x-hidden">
+  <!-- App Shell -->
+  <div class="min-h-screen flex flex-col">
+    <!-- Modern Floating-Style Top Header Bar -->
+    <header class="glass-panel border-b border-slate-800/90 px-4 py-3 sm:px-6 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-400 via-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-sky-500/25">
+          <!-- Wind / Dispersion SVG Icon -->
+          <svg class="w-5 h-5 text-slate-950" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.59 4.59A2 2 0 1111 8H2m10.59 11.41A2 2 0 1014 16H2m15.73-8.27A2.5 2.5 0 1119.5 12H2" />
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">Room Airflow &amp; Odor Lab</h1>
+            <span class="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-500/30">
+              Multi-Source &amp; Openings
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Drag windows, doors, furniture &amp; multiple smelly sources directly on the floor plan</p>
+        </div>
+      </div>
+
+      <!-- Primary Simulation Transport & Quick Burst Triggers -->
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="inline-flex items-center rounded-2xl bg-slate-900/90 p-1 border border-slate-800">
+          <button id="btnPlayPause" class="pill-btn px-3.5 py-1.5 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-semibold text-xs sm:text-sm flex items-center gap-1.5 shadow-sm">
+            <span id="playPauseIcon">⏸</span>
+            <span id="playPauseLabel">Pause</span>
+          </button>
+          <button id="btnStep" class="pill-btn px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-slate-300 font-medium text-xs sm:text-sm">
+            +1s
+          </button>
+          <button id="btnReset" class="pill-btn px-2.5 py-1.5 rounded-xl hover:bg-slate-800 text-slate-300 font-medium text-xs sm:text-sm">
+            Reset
+          </button>
+        </div>
+
+        <button id="btnSockBurst" class="pill-btn px-3.5 py-2 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-400/35 font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+          <span>🧦</span>
+          <span>Sock Burst</span>
+        </button>
+
+        <button id="btnFartBurst" class="pill-btn px-3.5 py-2 rounded-2xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-400/35 font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+          <span>💨</span>
+          <span>Fart Burst</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Status / Notification Banner (Replaces alert/confirm) -->
+    <div id="statusBanner" class="hidden bg-slate-900/95 border-b border-sky-500/30 px-4 py-2 text-xs sm:text-sm text-sky-200 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+        <span id="statusBannerText">Ready.</span>
+      </div>
+      <button id="btnDismissBanner" class="text-slate-400 hover:text-white px-2.5 py-1 rounded-lg hover:bg-slate-800 text-xs font-medium transition">Dismiss</button>
+    </div>
+
+    <!-- Main Responsive Grid: Left Controls, Center Diagram + Overview, Right Telemetry & Graph -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 p-3 sm:p-5 max-w-[1820px] w-full mx-auto">
+      <!-- LEFT COLUMN: Room, Multi-Windows/Doors, HVAC/Purifier & Multi-Odor/Furniture (4 cols on lg) -->
+      <section class="lg:col-span-4 flex flex-col gap-4">
+        <!-- 1. Room Dimensions & Multi-Window / Multi-Door Manager -->
+        <div class="glass-panel rounded-3xl p-4 sm:p-5">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-sky-500/15 text-sky-300 flex items-center justify-center text-xs font-bold">1</span>
+              <h2 class="text-sm font-semibold tracking-wide text-white">Room, Windows &amp; Doors</h2>
+            </div>
+            <span id="roomAreaBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800/90 text-sky-300 border border-slate-700/80">20.0 m²</span>
+          </div>
+
+          <!-- Room Width & Length -->
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-2.5">
+              <div class="flex justify-between text-xs mb-1.5">
+                <label for="roomWidthRange" class="text-slate-300 font-medium">Width (X)</label>
+                <span id="roomWidthVal" class="text-sky-400 font-semibold">5.0 m</span>
+              </div>
+              <input id="roomWidthRange" type="range" min="3.0" max="9.0" step="0.5" value="5.0" class="modern-range w-full" />
+            </div>
+            <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-2.5">
+              <div class="flex justify-between text-xs mb-1.5">
+                <label for="roomLengthRange" class="text-slate-300 font-medium">Length (Y)</label>
+                <span id="roomLengthVal" class="text-sky-400 font-semibold">4.0 m</span>
+              </div>
+              <input id="roomLengthRange" type="range" min="3.0" max="8.0" step="0.5" value="4.0" class="modern-range w-full" />
+            </div>
+          </div>
+
+          <!-- Add Window / Add Door Action Bar -->
+          <div class="grid grid-cols-2 gap-2 mb-3">
+            <button id="btnAddWindow" class="pill-btn px-3 py-2 rounded-2xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border border-cyan-400/35 text-xs font-semibold flex items-center justify-center gap-1.5">
+              <span>+ 🪟 Add Window</span>
+            </button>
+            <button id="btnAddDoor" class="pill-btn px-3 py-2 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-400/35 text-xs font-semibold flex items-center justify-center gap-1.5">
+              <span>+ 🚪 Add Door</span>
+            </button>
+          </div>
+
+          <!-- Dynamic List of Windows & Doors -->
+          <div id="openingsList" class="space-y-2.5 max-h-[290px] overflow-y-auto pr-0.5"></div>
+        </div>
+
+        <!-- 2. Airflow, Aircon (HVAC) & Air Purifier Card -->
+        <div class="glass-panel rounded-3xl p-4 sm:p-5">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-300 flex items-center justify-center text-xs font-bold">2</span>
+            <h2 class="text-sm font-semibold tracking-wide text-white">Airflow, Aircon &amp; Purifier</h2>
+          </div>
+
+          <!-- Natural / Fan Draft Speed -->
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-3 mb-3">
+            <div class="flex justify-between text-xs mb-1.5">
+              <label for="breezeStrengthRange" class="text-slate-300 font-medium">Breeze / Ventilation Speed</label>
+              <span id="breezeStrengthVal" class="text-emerald-400 font-semibold">1.2 m/s</span>
+            </div>
+            <input id="breezeStrengthRange" type="range" min="0.0" max="3.5" step="0.1" value="1.2" class="modern-range w-full" />
+          </div>
+
+          <!-- Aircon (Split AC) Toggle & Settings -->
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-3 mb-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-sky-300 flex items-center gap-1.5">
+                <span>❄️</span> Aircon (Split AC Unit)
+              </span>
+              <label class="inline-flex items-center gap-1.5 text-xs cursor-pointer bg-slate-950/70 px-2.5 py-1 rounded-full border border-slate-700/80">
+                <input id="airconToggle" type="checkbox" checked class="rounded accent-sky-400 w-3.5 h-3.5 cursor-pointer" />
+                <span class="text-slate-200 font-medium">ON</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label for="airconWallSelect" class="block text-[11px] text-slate-400 mb-1">Mount Wall</label>
+                <select id="airconWallSelect" class="w-full bg-slate-950 border border-slate-700/90 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-sky-400">
+                  <option value="top" selected>Top Wall</option>
+                  <option value="left">Left Wall</option>
+                  <option value="right">Right Wall</option>
+                  <option value="bottom">Bottom Wall</option>
+                </select>
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] mb-1">
+                  <label for="airconPowerRange" class="text-slate-400">Fan Jet</label>
+                  <span id="airconPowerVal" class="text-sky-300 font-medium">Medium</span>
+                </div>
+                <input id="airconPowerRange" type="range" min="1" max="3" step="1" value="2" class="modern-range w-full mt-1.5" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Air Purifier Toggle & CADR -->
+          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold text-violet-300 flex items-center gap-1.5">
+                <span>🌀</span> Activated Carbon Purifier
+              </span>
+              <label class="inline-flex items-center gap-1.5 text-xs cursor-pointer bg-slate-950/70 px-2.5 py-1 rounded-full border border-slate-700/80">
+                <input id="purifierToggle" type="checkbox" class="rounded accent-violet-400 w-3.5 h-3.5 cursor-pointer" />
+                <span class="text-slate-200 font-medium">ON</span>
+              </label>
+            </div>
+            <div>
+              <div class="flex justify-between text-[11px] mb-1.5">
+                <label for="purifierRateRange" class="text-slate-400">Odor Scrubbing Rate</label>
+                <span id="purifierRateVal" class="text-violet-300 font-medium">High (300 m³/h)</span>
+              </div>
+              <input id="purifierRateRange" type="range" min="1" max="3" step="1" value="3" class="modern-range w-full" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Multi-Odor Sources, People & Room Obstacles Card -->
+        <div class="glass-panel rounded-3xl p-4 sm:p-5">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-amber-500/15 text-amber-300 flex items-center justify-center text-xs font-bold">3</span>
+              <h2 class="text-sm font-semibold tracking-wide text-white">Smelly Things &amp; Room Stuff</h2>
+            </div>
+            <button id="btnClearItems" class="pill-btn text-xs text-rose-300 hover:text-rose-200 font-medium px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25">
+              Clear All
+            </button>
+          </div>
+          <p class="text-xs text-slate-400 mb-3">
+            Add multiple smelly items to emit odor simultaneously, or place furniture &amp; walls. <span class="text-slate-200 font-medium">Drag any item, window, or door</span> on the room map.
+          </p>
+
+          <!-- Odor Sources Sub-group -->
+          <div class="mb-2">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-amber-300/90 mb-1.5">Smelly Odor Sources (Multiple Allowed)</span>
+            <div class="grid grid-cols-4 gap-1.5">
+              <button data-add-type="sock" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/30 text-[11px] font-medium text-amber-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🧦</span>
+                <span>Sock</span>
+              </button>
+              <button data-add-type="fart_zone" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-[11px] font-medium text-emerald-200 flex flex-col items-center gap-1">
+                <span class="text-sm">💨</span>
+                <span>Fart</span>
+              </button>
+              <button data-add-type="trash" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-400/30 text-[11px] font-medium text-orange-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🗑️</span>
+                <span>Trash</span>
+              </button>
+              <button data-add-type="gym_bag" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-lime-500/10 hover:bg-lime-500/20 border border-lime-400/30 text-[11px] font-medium text-lime-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🏋️</span>
+                <span>Gym Bag</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Furniture, Walls & People Sub-group -->
+          <div class="mb-3">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Obstacles &amp; People</span>
+            <div class="grid grid-cols-4 gap-1.5">
+              <button data-add-type="bed" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-[11px] font-medium text-slate-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🛏️</span>
+                <span>Bed</span>
+              </button>
+              <button data-add-type="wardrobe" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-[11px] font-medium text-slate-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🗄️</span>
+                <span>Wardrobe</span>
+              </button>
+              <button data-add-type="wall" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-[11px] font-medium text-slate-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🧱</span>
+                <span>Wall</span>
+              </button>
+              <button data-add-type="person" class="add-item-btn pill-btn px-2 py-2 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 text-[11px] font-medium text-slate-200 flex flex-col items-center gap-1">
+                <span class="text-sm">🧍</span>
+                <span>Person</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Odor Emitters Quick List -->
+          <div class="mb-3">
+            <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
+              <span>Active Smelly Emitters in Room</span>
+              <span id="activeEmittersCount" class="text-amber-300 font-semibold">0 active</span>
+            </div>
+            <div id="activeEmittersList" class="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto"></div>
+          </div>
+
+          <!-- Selected Item Inspector -->
+          <div id="selectedItemPanel" class="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-3 text-xs">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-slate-400 truncate">Selected: <strong id="selectedItemName" class="text-slate-100">None</strong></span>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button id="btnRotateItem" disabled class="pill-btn px-2.5 py-1 rounded-xl bg-slate-800 disabled:opacity-40 hover:bg-slate-700 text-slate-200 font-medium">
+                  ↻ Rotate
+                </button>
+                <button id="btnDeleteItem" disabled class="pill-btn px-2.5 py-1 rounded-xl bg-rose-500/20 disabled:opacity-40 hover:bg-rose-500/30 text-rose-300 font-medium">
+                  Remove
+                </button>
+              </div>
+            </div>
+            <div id="sourceEmissionControls" class="hidden mt-2.5 pt-2.5 border-t border-slate-800/90">
+              <div class="flex justify-between text-[11px] mb-1.5">
+                <label for="emissionRateRange" class="text-slate-300">Odor Emission Intensity</label>
+                <span id="emissionRateVal" class="text-amber-300 font-semibold">Medium</span>
+              </div>
+              <input id="emissionRateRange" type="range" min="0" max="10" step="1" value="5" class="modern-range w-full" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CENTER & RIGHT COLUMNS: Spatial Diagram + Overview + Live Graph (8 cols on lg) -->
+      <section class="lg:col-span-8 flex flex-col gap-4">
+        <!-- Top Row Inside Right Area: 2D Spatial Room Diagram -->
+        <div class="glass-panel rounded-3xl p-4 sm:p-5 flex flex-col">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2.5">
+              <h2 class="text-sm font-semibold tracking-wide text-white">Interactive Floor Plan &amp; Airflow Map</h2>
+              <span id="simClockBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-900 text-emerald-300 border border-slate-700/80">t = 0.0s</span>
+            </div>
+
+            <!-- Diagram Overlay Segmented Controls -->
+            <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-900/80 p-1 rounded-2xl border border-slate-800">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 px-2 py-1 rounded-xl hover:bg-slate-800/70">
+                <input id="toggleHeatmap" type="checkbox" checked class="rounded accent-amber-400 w-3.5 h-3.5 cursor-pointer" />
+                <span>Plume</span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 px-2 py-1 rounded-xl hover:bg-slate-800/70">
+                <input id="toggleVectors" type="checkbox" checked class="rounded accent-sky-400 w-3.5 h-3.5 cursor-pointer" />
+                <span>Flow</span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300 px-2 py-1 rounded-xl hover:bg-slate-800/70">
+                <input id="toggleParticles" type="checkbox" checked class="rounded accent-emerald-400 w-3.5 h-3.5 cursor-pointer" />
+                <span>Molecules</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Responsive Canvas Container for Room Diagram -->
+          <div class="relative w-full h-[370px] sm:h-[440px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/90">
+            <canvas id="roomCanvas" class="touch-none cursor-grab active:cursor-grabbing"></canvas>
+          </div>
+
+          <!-- Compact Legend Bar -->
+          <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Airflow</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Mild Odor</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Strong Odor</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> Window</span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-300 inline-block"></span> Door</span>
+            </div>
+            <span id="dragHintText" class="text-slate-400">Drag any item, window, or door along walls to reposition.</span>
+          </div>
+        </div>
+
+        <!-- Bottom Grid: Overview & Metrics + Real-Time Odor Concentration Graph -->
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
+          <!-- Overview & Live Summary (5 cols on xl) -->
+          <div class="xl:col-span-5 glass-panel rounded-3xl p-4 sm:p-5 flex flex-col justify-between">
+            <div>
+              <h2 class="text-sm font-semibold tracking-wide text-white mb-3">Simulation Overview</h2>
+
+              <!-- Key KPI Cards -->
+              <div class="grid grid-cols-2 gap-2.5 mb-3">
+                <div class="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-3">
+                  <div class="text-[11px] text-slate-400">Avg Room Odor</div>
+                  <div id="kpiAvgOdor" class="text-xl font-bold text-amber-300 mt-0.5">0%</div>
+                  <div id="kpiOdorRating" class="text-[11px] text-slate-400">Fresh Air</div>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-3">
+                  <div class="text-[11px] text-slate-400">Escaped Outside / Hall</div>
+                  <div id="kpiEscaped" class="text-xl font-bold text-cyan-300 mt-0.5">0.0 u</div>
+                  <div id="kpiPurified" class="text-[11px] text-violet-300">Scrubbed: 0.0</div>
+                </div>
+              </div>
+
+              <!-- Dynamic Narrative Explanation -->
+              <div class="bg-slate-950/65 border border-slate-800/80 rounded-2xl p-3 text-xs leading-relaxed text-slate-300 space-y-2">
+                <p id="overviewSummaryText">
+                  Odor plumes follow local velocity vectors while deflecting around beds, wardrobes, and partition walls.
+                </p>
+                <p id="overviewVentilationNote" class="text-[11px] text-slate-400">
+                  Tip: Add or drag windows and doors, or enable the carbon air purifier to scrub indoor odor.
+                </p>
+              </div>
+            </div>
+
+            <!-- Person Exposure Readout (if a person is in the room) -->
+            <div id="personExposureBox" class="mt-3 bg-slate-950/85 border border-slate-800/90 rounded-2xl px-3.5 py-2.5 flex items-center justify-between text-xs">
+              <span class="text-slate-400">🧍 Person Nose Exposure:</span>
+              <span id="personExposureVal" class="font-semibold text-emerald-300">No person placed</span>
+            </div>
+          </div>
+
+          <!-- Real-Time Odor Concentration Graph (7 cols on xl) -->
+          <div class="xl:col-span-7 glass-panel rounded-3xl p-4 sm:p-5 flex flex-col">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <div>
+                <h2 class="text-sm font-semibold tracking-wide text-white">Odor Concentration Timeline</h2>
+                <p class="text-[11px] text-slate-400">Room-wide average odor, peak hotspot concentration, and odor cleared/escaped</p>
+              </div>
+              <div class="flex items-center gap-3 text-[11px]">
+                <span class="flex items-center gap-1 text-amber-300"><span class="w-2.5 h-0.5 bg-amber-400 inline-block"></span> Avg Room</span>
+                <span class="flex items-center gap-1 text-rose-400"><span class="w-2.5 h-0.5 bg-rose-500 inline-block"></span> Peak Spot</span>
+                <span class="flex items-center gap-1 text-cyan-300"><span class="w-2.5 h-0.5 bg-cyan-400 inline-block"></span> Flushed/Purified</span>
+              </div>
+            </div>
+
+            <div class="relative w-full h-[215px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/90">
+              <canvas id="graphCanvas"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    /**
+     * Room Airflow & Odor Dispersion Simulator
+     * Enhanced with:
+     * - Multiple draggable windows and doors along any room wall (add/remove/toggle/reposition)
+     * - Multiple simultaneous smelly odor sources (sock, fart source, trash, gym bag) with individual emission controls
+     * - Revamped modern glassmorphic UI and quick emitter selection chips
+     */
+
+    (function () {
+      'use strict';
+
+      // ---------- Grid & Simulation Constants ----------
+      const NX = 44;
+      const NY = 36;
+      const CELL_COUNT = NX * NY;
+      const DT_FIXED = 0.08;
+      const MAX_HISTORY_SECONDS = 90;
+
+      // ---------- Application State ----------
+      const state = {
+        running: true,
+        simTime: 0,
+        accumulator: 0,
+
+        // Room geometry in meters
+        roomWidth: 5.0,
+        roomLength: 4.0,
+
+        // Multiple windows and doors: { id, kind: 'window'|'door', open, wall, posFrac, widthMeters, mode }
+        openings: [],
+        draggingOpeningId: null,
+
+        // Ambient / fan breeze speed (m/s)
+        breezeSpeed: 1.2,
+
+        // Aircon (Split AC)
+        aircon: {
+          enabled: true,
+          wall: 'top',
+          power: 2
+        },
+
+        // Activated Carbon Air Purifier
+        purifier: {
+          enabled: false,
+          level: 3
+        },
+
+        // Diagram display toggles
+        showHeatmap: true,
+        showVectors: true,
+        showParticles: true,
+
+        // Placed items (obstacles, people, multiple smelly sources)
+        items: [],
+        selectedItemId: null,
+        draggingItemId: null,
+        dragOffsetX: 0,
+        dragOffsetY: 0,
+
+        // Cumulative tracking
+        escapedOdor: 0,
+        purifiedOdor: 0,
+
+        // Time-series history for graph
+        history: [],
+        lastHistorySampleTime: -1,
+
+        // Visual particles for molecules
+        particles: []
+      };
+
+      // Simulation field arrays
+      let conc = new Float32Array(CELL_COUNT);
+      let nextConc = new Float32Array(CELL_COUNT);
+      let vx = new Float32Array(CELL_COUNT);
+      let vy = new Float32Array(CELL_COUNT);
+      let solid = new Uint8Array(CELL_COUNT);
+
+      let diagramTransform = {
+        offsetX: 0,
+        offsetY: 0,
+        scale: 1,
+        drawW: 0,
+        drawH: 0
+      };
+
+      // ---------- DOM References ----------
+      const el = {
+        btnPlayPause: document.getElementById('btnPlayPause'),
+        playPauseIcon: document.getElementById('playPauseIcon'),
+        playPauseLabel: document.getElementById('playPauseLabel'),
+        btnStep: document.getElementById('btnStep'),
+        btnReset: document.getElementById('btnReset'),
+        btnSockBurst: document.getElementById('btnSockBurst'),
+        btnFartBurst: document.getElementById('btnFartBurst'),
+        btnClearItems: document.getElementById('btnClearItems'),
+
+        btnAddWindow: document.getElementById('btnAddWindow'),
+        btnAddDoor: document.getElementById('btnAddDoor'),
+        openingsList: document.getElementById('openingsList'),
+
+        statusBanner: document.getElementById('statusBanner'),
+        statusBannerText: document.getElementById('statusBannerText'),
+        btnDismissBanner: document.getElementById('btnDismissBanner'),
+
+        roomAreaBadge: document.getElementById('roomAreaBadge'),
+        roomWidthRange: document.getElementById('roomWidthRange'),
+        roomWidthVal: document.getElementById('roomWidthVal'),
+        roomLengthRange: document.getElementById('roomLengthRange'),
+        roomLengthVal: document.getElementById('roomLengthVal'),
+
+        breezeStrengthRange: document.getElementById('breezeStrengthRange'),
+        breezeStrengthVal: document.getElementById('breezeStrengthVal'),
+
+        airconToggle: document.getElementById('airconToggle'),
+        airconWallSelect: document.getElementById('airconWallSelect'),
+        airconPowerRange: document.getElementById('airconPowerRange'),
+        airconPowerVal: document.getElementById('airconPowerVal'),
+
+        purifierToggle: document.getElementById('purifierToggle'),
+        purifierRateRange: document.getElementById('purifierRateRange'),
+        purifierRateVal: document.getElementById('purifierRateVal'),
+
+        activeEmittersCount: document.getElementById('activeEmittersCount'),
+        activeEmittersList: document.getElementById('activeEmittersList'),
+
+        selectedItemName: document.getElementById('selectedItemName'),
+        btnRotateItem: document.getElementById('btnRotateItem'),
+        btnDeleteItem: document.getElementById('btnDeleteItem'),
+        sourceEmissionControls: document.getElementById('sourceEmissionControls'),
+        emissionRateRange: document.getElementById('emissionRateRange'),
+        emissionRateVal: document.getElementById('emissionRateVal'),
+
+        toggleHeatmap: document.getElementById('toggleHeatmap'),
+        toggleVectors: document.getElementById('toggleVectors'),
+        toggleParticles: document.getElementById('toggleParticles'),
+
+        simClockBadge: document.getElementById('simClockBadge'),
+        roomCanvas: document.getElementById('roomCanvas'),
+        graphCanvas: document.getElementById('graphCanvas'),
+
+        kpiAvgOdor: document.getElementById('kpiAvgOdor'),
+        kpiOdorRating: document.getElementById('kpiOdorRating'),
+        kpiEscaped: document.getElementById('kpiEscaped'),
+        kpiPurified: document.getElementById('kpiPurified'),
+        overviewSummaryText: document.getElementById('overviewSummaryText'),
+        overviewVentilationNote: document.getElementById('overviewVentilationNote'),
+        personExposureBox: document.getElementById('personExposureBox'),
+        personExposureVal: document.getElementById('personExposureVal')
+      };
+
+      const roomCtx = el.roomCanvas.getContext('2d');
+      const graphCtx = el.graphCanvas.getContext('2d');
+
+      // ---------- Helper Functions ----------
+      function idxOf(ix, iy) {
+        return iy * NX + ix;
+      }
+
+      function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+      }
+
+      function showBanner(msg) {
+        el.statusBannerText.textContent = msg;
+        el.statusBanner.classList.remove('hidden');
+      }
+
+      function hideBanner() {
+        el.statusBanner.classList.add('hidden');
+      }
+
+      let nextEntityId = 1;
+
+      function createOpening(kind, overrides = {}) {
+        const isWindow = kind === 'window';
+        return {
+          id: `${kind}_${nextEntityId++}`,
+          kind,
+          open: overrides.open !== undefined ? overrides.open : true,
+          wall: overrides.wall || (isWindow ? 'top' : 'bottom'),
+          posFrac: clamp(overrides.posFrac !== undefined ? overrides.posFrac : (isWindow ? 0.65 : 0.25), 0.14, 0.86),
+          widthMeters: overrides.widthMeters || (isWindow ? 1.1 : 0.9),
+          mode: overrides.mode || (isWindow ? 'in' : 'passive')
+        };
+      }
+
+      function createItem(type, x, y) {
+        const defaults = {
+          bed: {
+            label: 'Bed',
+            emoji: '🛏️',
+            w: 1.6,
+            h: 2.0,
+            blocksAir: true,
+            color: '#3b82f6',
+            fill: 'rgba(59, 130, 246, 0.22)',
+            emission: 0,
+            isOdorSource: false
+          },
+          wardrobe: {
+            label: 'Wardrobe',
+            emoji: '🗄️',
+            w: 1.2,
+            h: 0.65,
+            blocksAir: true,
+            color: '#a855f7',
+            fill: 'rgba(168, 85, 247, 0.24)',
+            emission: 0,
+            isOdorSource: false
+          },
+          wall: {
+            label: 'Partition Wall',
+            emoji: '🧱',
+            w: 1.6,
+            h: 0.25,
+            blocksAir: true,
+            color: '#94a3b8',
+            fill: 'rgba(148, 163, 184, 0.35)',
+            emission: 0,
+            isOdorSource: false
+          },
+          person: {
+            label: 'Person',
+            emoji: '🧍',
+            w: 0.55,
+            h: 0.55,
+            blocksAir: true,
+            color: '#38bdf8',
+            fill: 'rgba(56, 189, 248, 0.22)',
+            emission: 0,
+            isOdorSource: false
+          },
+          sock: {
+            label: 'Smelly Sock',
+            emoji: '🧦',
+            w: 0.45,
+            h: 0.45,
+            blocksAir: false,
+            color: '#f59e0b',
+            fill: 'rgba(245, 158, 11, 0.24)',
+            emission: 6,
+            isOdorSource: true
+          },
+          fart_zone: {
+            label: 'Fart Cloud',
+            emoji: '💨',
+            w: 0.5,
+            h: 0.5,
+            blocksAir: false,
+            color: '#10b981',
+            fill: 'rgba(16, 185, 129, 0.24)',
+            emission: 4,
+            isOdorSource: true
+          },
+          trash: {
+            label: 'Stinky Trash',
+            emoji: '🗑️',
+            w: 0.5,
+            h: 0.5,
+            blocksAir: true,
+            color: '#f97316',
+            fill: 'rgba(249, 115, 22, 0.25)',
+            emission: 7,
+            isOdorSource: true
+          },
+          gym_bag: {
+            label: 'Sweaty Gym Bag',
+            emoji: '🏋️',
+            w: 0.55,
+            h: 0.45,
+            blocksAir: true,
+            color: '#84cc16',
+            fill: 'rgba(132, 204, 22, 0.24)',
+            emission: 5,
+            isOdorSource: true
+          }
+        };
+
+        const d = defaults[type] || defaults.sock;
+        const safeX = clamp(x, d.w * 0.5 + 0.15, state.roomWidth - d.w * 0.5 - 0.15);
+        const safeY = clamp(y, d.h * 0.5 + 0.15, state.roomLength - d.h * 0.5 - 0.15);
+
+        return {
+          id: 'item_' + (nextEntityId++),
+          type,
+          label: d.label,
+          emoji: d.emoji,
+          x: safeX,
+          y: safeY,
+          w: d.w,
+          h: d.h,
+          angle: 0,
+          blocksAir: d.blocksAir,
+          color: d.color,
+          fill: d.fill,
+          emission: d.emission,
+          isOdorSource: d.isOdorSource
+        };
+      }
+
+      function getEffectiveBounds(item) {
+        const rotated = Math.abs(Math.sin(item.angle)) > 0.5;
+        const ew = rotated ? item.h : item.w;
+        const eh = rotated ? item.w : item.h;
+        return {
+          left: item.x - ew * 0.5,
+          right: item.x + ew * 0.5,
+          top: item.y - eh * 0.5,
+          bottom: item.y + eh * 0.5,
+          ew,
+          eh
+        };
+      }
+
+      function populateDefaultRoom() {
+        state.openings = [
+          createOpening('window', { open: true, wall: 'top', posFrac: 0.65, widthMeters: 1.1, mode: 'in' }),
+          createOpening('door', { open: true, wall: 'bottom', posFrac: 0.25, widthMeters: 0.9, mode: 'passive' })
+        ];
+
+        state.items = [
+          createItem('bed', 1.25, 1.35),
+          createItem('wardrobe', state.roomWidth - 0.85, 0.65),
+          createItem('wall', state.roomWidth * 0.52, state.roomLength * 0.55),
+          createItem('person', state.roomWidth * 0.72, state.roomLength * 0.76),
+          createItem('sock', 1.55, state.roomLength - 0.75)
+        ];
+        state.selectedItemId = state.items[4].id;
+        renderOpeningsList();
+        renderActiveEmitters();
+        syncSelectedItemUI();
+        rebuildSolidGrid();
+        computeVelocityField();
+      }
+
+      // ---------- Physics: Solid Obstacles & Airflow Velocity Field ----------
+      function rebuildSolidGrid() {
+        solid.fill(0);
+        const cellW = state.roomWidth / NX;
+        const cellH = state.roomLength / NY;
+
+        for (let iy = 0; iy < NY; iy++) {
+          const cy = (iy + 0.5) * cellH;
+          for (let ix = 0; ix < NX; ix++) {
+            const cx = (ix + 0.5) * cellW;
+            for (const item of state.items) {
+              if (!item.blocksAir) continue;
+              const b = getEffectiveBounds(item);
+              if (cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom) {
+                solid[idxOf(ix, iy)] = 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      function getOpeningCenterMeters(opening) {
+        const frac = clamp(opening.posFrac, 0.14, 0.86);
+        switch (opening.wall) {
+          case 'top':
+            return { x: frac * state.roomWidth, y: 0, nx: 0, ny: 1 };
+          case 'bottom':
+            return { x: frac * state.roomWidth, y: state.roomLength, nx: 0, ny: -1 };
+          case 'left':
+            return { x: 0, y: frac * state.roomLength, nx: 1, ny: 0 };
+          case 'right':
+            return { x: state.roomWidth, y: frac * state.roomLength, nx: -1, ny: 0 };
+          default:
+            return { x: state.roomWidth * 0.5, y: 0, nx: 0, ny: 1 };
+        }
+      }
+
+      function getAirconPose() {
+        const w = state.roomWidth;
+        const l = state.roomLength;
+        switch (state.aircon.wall) {
+          case 'top':
+            return { x: w * 0.5, y: 0.25, jx: 0.25, jy: 0.96 };
+          case 'bottom':
+            return { x: w * 0.5, y: l - 0.25, jx: -0.25, jy: -0.96 };
+          case 'left':
+            return { x: 0.25, y: l * 0.5, jx: 0.96, jy: 0.25 };
+          case 'right':
+            return { x: w - 0.25, y: l * 0.5, jx: -0.96, jy: -0.25 };
+          default:
+            return { x: w * 0.5, y: 0.25, jx: 0.25, jy: 0.96 };
+        }
+      }
+
+      function getPurifierPosition() {
+        return {
+          x: clamp(state.roomWidth * 0.82, 0.6, state.roomWidth - 0.6),
+          y: clamp(state.roomLength * 0.25, 0.6, state.roomLength - 0.6)
+        };
+      }
+
+      function computeVelocityField() {
+        const cellW = state.roomWidth / NX;
+        const cellH = state.roomLength / NY;
+        const acPose = getAirconPose();
+        const purifierPos = getPurifierPosition();
+
+        const activeWindows = state.openings.filter((o) => o.kind === 'window' && o.open);
+        const activeDoors = state.openings.filter((o) => o.kind === 'door' && o.open);
+        const winInfos = activeWindows.map((w) => ({ opening: w, info: getOpeningCenterMeters(w) }));
+        const doorInfos = activeDoors.map((d) => ({ opening: d, info: getOpeningCenterMeters(d) }));
+
+        for (let iy = 0; iy < NY; iy++) {
+          const py = (iy + 0.5) * cellH;
+          for (let ix = 0; ix < NX; ix++) {
+            const px = (ix + 0.5) * cellW;
+            const i = idxOf(ix, iy);
+
+            if (solid[i]) {
+              vx[i] = 0;
+              vy[i] = 0;
+              continue;
+            }
+
+            let u = state.breezeSpeed * 0.22 * Math.cos((py / state.roomLength) * Math.PI);
+            let v = state.breezeSpeed * 0.14 * Math.sin((px / state.roomWidth) * Math.PI);
+
+            // 1. All Open Windows
+            for (const { opening, info } of winInfos) {
+              const dx = px - info.x;
+              const dy = py - info.y;
+              const dist = Math.hypot(dx, dy) + 0.35;
+              const jetStrength = state.breezeSpeed * 1.45;
+              const falloff = Math.exp(-dist * 0.42);
+
+              let dirSign = 1;
+              if (opening.mode === 'out') {
+                dirSign = -1;
+              } else if (opening.mode === 'passive') {
+                dirSign = Math.sin(state.simTime * 0.55) >= 0 ? 0.75 : -0.75;
+              }
+
+              u += info.nx * dirSign * jetStrength * falloff;
+              v += info.ny * dirSign * jetStrength * falloff;
+            }
+
+            // 2. All Open Doorways
+            for (const { info } of doorInfos) {
+              const dx = px - info.x;
+              const dy = py - info.y;
+              const dist = Math.hypot(dx, dy) + 0.35;
+              const falloff = Math.exp(-dist * 0.48);
+
+              const hasInflowWindow = activeWindows.some((w) => w.mode === 'in');
+              const hasOutflowWindow = activeWindows.some((w) => w.mode === 'out');
+
+              let doorSign = -0.55;
+              if (hasInflowWindow) {
+                doorSign = -0.95;
+              } else if (hasOutflowWindow) {
+                doorSign = 0.85;
+              } else {
+                doorSign = Math.cos(state.simTime * 0.4 + 1.1) * 0.55;
+              }
+
+              const doorSpeed = Math.max(0.45, state.breezeSpeed * 0.85);
+              u += info.nx * doorSign * doorSpeed * falloff;
+              v += info.ny * doorSign * doorSpeed * falloff;
+            }
+
+            // 3. Split Aircon jet + room swirl
+            if (state.aircon.enabled) {
+              const dx = px - acPose.x;
+              const dy = py - acPose.y;
+              const dist = Math.hypot(dx, dy) + 0.3;
+              const acJetMag = state.aircon.power * 1.05;
+              const beam = Math.exp(-dist * 0.36);
+
+              u += acPose.jx * acJetMag * beam;
+              v += acPose.jy * acJetMag * beam;
+
+              const cx = px - state.roomWidth * 0.5;
+              const cy = py - state.roomLength * 0.5;
+              const swirlMag = state.aircon.power * 0.32;
+              u += (-cy / (state.roomLength * 0.5 + 0.5)) * swirlMag;
+              v += (cx / (state.roomWidth * 0.5 + 0.5)) * swirlMag;
+            }
+
+            // 4. Air Purifier intake pull
+            if (state.purifier.enabled) {
+              const dx = purifierPos.x - px;
+              const dy = purifierPos.y - py;
+              const dist = Math.hypot(dx, dy) + 0.25;
+              if (dist < 2.6) {
+                const pull = (state.purifier.level * 0.55) / (dist * dist + 0.35);
+                u += (dx / dist) * pull;
+                v += (dy / dist) * pull;
+              }
+            }
+
+            vx[i] = clamp(u, -4.5, 4.5);
+            vy[i] = clamp(v, -4.5, 4.5);
+          }
+        }
+
+        // Deflect around solid obstacles
+        for (let iter = 0; iter < 2; iter++) {
+          for (let iy = 1; iy < NY - 1; iy++) {
+            for (let ix = 1; ix < NX - 1; ix++) {
+              const i = idxOf(ix, iy);
+              if (solid[i]) continue;
+
+              let pushX = 0;
+              let pushY = 0;
+              if (solid[idxOf(ix - 1, iy)]) pushX += 1;
+              if (solid[idxOf(ix + 1, iy)]) pushX -= 1;
+              if (solid[idxOf(ix, iy - 1)]) pushY += 1;
+              if (solid[idxOf(ix, iy + 1)]) pushY -= 1;
+
+              if (pushX !== 0 || pushY !== 0) {
+                const len = Math.hypot(pushX, pushY);
+                const nx = pushX / len;
+                const ny = pushY / len;
+                const dot = vx[i] * nx + vy[i] * ny;
+                if (dot < 0) {
+                  vx[i] -= dot * nx;
+                  vy[i] -= dot * ny;
+                  vx[i] += -ny * 0.35;
+                  vy[i] += nx * 0.35;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // ---------- Physics: Odor Advection, Diffusion, Multi-Sources, Purifier & Openings ----------
+      function stepOdorPhysics(dt) {
+        const cellW = state.roomWidth / NX;
+        const cellH = state.roomLength / NY;
+
+        const baseDiffusion = 0.08 + state.breezeSpeed * 0.05 + (state.aircon.enabled ? state.aircon.power * 0.06 : 0);
+        const diffX = (baseDiffusion * dt) / (cellW * cellW);
+        const diffY = (baseDiffusion * dt) / (cellH * cellH);
+
+        for (let iy = 0; iy < NY; iy++) {
+          for (let ix = 0; ix < NX; ix++) {
+            const i = idxOf(ix, iy);
+            if (solid[i]) {
+              nextConc[i] = 0;
+              continue;
+            }
+
+            const srcX = clamp(ix - (vx[i] * dt) / cellW, 0, NX - 1.001);
+            const srcY = clamp(iy - (vy[i] * dt) / cellH, 0, NY - 1.001);
+
+            const x0 = Math.floor(srcX);
+            const y0 = Math.floor(srcY);
+            const x1 = Math.min(x0 + 1, NX - 1);
+            const y1 = Math.min(y0 + 1, NY - 1);
+            const sx = srcX - x0;
+            const sy = srcY - y0;
+
+            const c00 = solid[idxOf(x0, y0)] ? conc[i] : conc[idxOf(x0, y0)];
+            const c10 = solid[idxOf(x1, y0)] ? conc[i] : conc[idxOf(x1, y0)];
+            const c01 = solid[idxOf(x0, y1)] ? conc[i] : conc[idxOf(x0, y1)];
+            const c11 = solid[idxOf(x1, y1)] ? conc[i] : conc[idxOf(x1, y1)];
+
+            const advected =
+              (1 - sx) * (1 - sy) * c00 +
+              sx * (1 - sy) * c10 +
+              (1 - sx) * sy * c01 +
+              sx * sy * c11;
+
+            const cL = ix > 0 && !solid[idxOf(ix - 1, iy)] ? conc[idxOf(ix - 1, iy)] : advected;
+            const cR = ix < NX - 1 && !solid[idxOf(ix + 1, iy)] ? conc[idxOf(ix + 1, iy)] : advected;
+            const cU = iy > 0 && !solid[idxOf(ix, iy - 1)] ? conc[idxOf(ix, iy - 1)] : advected;
+            const cD = iy < NY - 1 && !solid[idxOf(ix, iy + 1)] ? conc[idxOf(ix, iy + 1)] : advected;
+
+            const diffused =
+              advected +
+              clamp(diffX, 0, 0.18) * (cL + cR - 2 * advected) +
+              clamp(diffY, 0, 0.18) * (cU + cD - 2 * advected);
+
+            nextConc[i] = Math.max(0, diffused * (1 - 0.004 * dt));
+          }
+        }
+
+        const tmp = conc;
+        conc = nextConc;
+        nextConc = tmp;
+
+        // Simultaneous Odor Emissions from ALL smelly items in the room
+        for (const item of state.items) {
+          if (item.emission <= 0) continue;
+          const gix = clamp(Math.floor((item.x / state.roomWidth) * NX), 0, NX - 1);
+          const giy = clamp(Math.floor((item.y / state.roomLength) * NY), 0, NY - 1);
+          const added = item.emission * 2.8 * dt;
+
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const nx = clamp(gix + dx, 0, NX - 1);
+              const ny = clamp(giy + dy, 0, NY - 1);
+              const nIdx = idxOf(nx, ny);
+              if (!solid[nIdx]) {
+                const weight = dx === 0 && dy === 0 ? 0.45 : 0.068;
+                conc[nIdx] = Math.min(140, conc[nIdx] + added * weight);
+              }
+            }
+          }
+        }
+
+        // Purifier Scrubbing
+        if (state.purifier.enabled) {
+          const purPos = getPurifierPosition();
+          const pix = clamp(Math.floor((purPos.x / state.roomWidth) * NX), 0, NX - 1);
+          const piy = clamp(Math.floor((purPos.y / state.roomLength) * NY), 0, NY - 1);
+          const scrubRadiusCells = 4 + state.purifier.level;
+          const scrubFactor = state.purifier.level * 0.42 * dt;
+
+          for (let dy = -scrubRadiusCells; dy <= scrubRadiusCells; dy++) {
+            for (let dx = -scrubRadiusCells; dx <= scrubRadiusCells; dx++) {
+              const nx = pix + dx;
+              const ny = piy + dy;
+              if (nx < 0 || nx >= NX || ny < 0 || ny >= NY) continue;
+              const dist = Math.hypot(dx, dy);
+              if (dist <= scrubRadiusCells) {
+                const cIdx = idxOf(nx, ny);
+                const strength = scrubFactor * (1 - dist / (scrubRadiusCells + 0.5));
+                const removed = conc[cIdx] * clamp(strength, 0, 0.75);
+                conc[cIdx] -= removed;
+                state.purifiedOdor += removed * cellW * cellH;
+              }
+            }
+          }
+        }
+
+        // Boundary Exchange via ALL Open Windows & Doors
+        for (const opening of state.openings) {
+          if (!opening.open) continue;
+          const info = getOpeningCenterMeters(opening);
+          const oix = clamp(Math.floor((info.x / state.roomWidth) * NX), 0, NX - 1);
+          const oiy = clamp(Math.floor((info.y / state.roomLength) * NY), 0, NY - 1);
+          const axisLen = opening.wall === 'top' || opening.wall === 'bottom' ? state.roomWidth : state.roomLength;
+          const axisCells = opening.wall === 'top' || opening.wall === 'bottom' ? NX : NY;
+          const span = Math.max(2, Math.round(((opening.widthMeters / axisLen) * axisCells) * 0.5));
+          const baseRate = opening.kind === 'window' ? (opening.mode === 'out' ? 1.45 : 0.85) : 0.9;
+
+          for (let k = -span; k <= span; k++) {
+            const x = opening.wall === 'left' || opening.wall === 'right' ? oix : clamp(oix + k, 0, NX - 1);
+            const y = opening.wall === 'top' || opening.wall === 'bottom' ? oiy : clamp(oiy + k, 0, NY - 1);
+            const cIdx = idxOf(x, y);
+            const rate = clamp(baseRate * (0.4 + state.breezeSpeed * 0.35) * dt, 0, 0.85);
+            const leaving = conc[cIdx] * rate;
+            conc[cIdx] -= leaving;
+            state.escapedOdor += leaving * cellW * cellH;
+          }
+        }
+      }
+
+      function triggerOdorBurst(kind, customX, customY) {
+        let bx = customX;
+        let by = customY;
+
+        if (bx === undefined || by === undefined) {
+          if (kind === 'sock') {
+            const sockItem = state.items.find((it) => it.type === 'sock' || it.isOdorSource);
+            if (sockItem) {
+              bx = sockItem.x;
+              by = sockItem.y;
+            } else {
+              bx = state.roomWidth * 0.3;
+              by = state.roomLength * 0.7;
+            }
+          } else {
+            const personItem = state.items.find((it) => it.type === 'person');
+            if (personItem) {
+              bx = personItem.x;
+              by = personItem.y;
+            } else {
+              bx = state.roomWidth * 0.55;
+              by = state.roomLength * 0.55;
+            }
+          }
+        }
+
+        const gix = clamp(Math.floor((bx / state.roomWidth) * NX), 1, NX - 2);
+        const giy = clamp(Math.floor((by / state.roomLength) * NY), 1, NY - 2);
+        const burstAmount = kind === 'fart' ? 42 : 34;
+
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const r = Math.hypot(dx, dy);
+            if (r > 2.4) continue;
+            const cIdx = idxOf(gix + dx, giy + dy);
+            if (!solid[cIdx]) {
+              conc[cIdx] = Math.min(140, conc[cIdx] + burstAmount * Math.exp(-r * 0.75));
+            }
+          }
+        }
+
+        for (let p = 0; p < 24; p++) {
+          const ang = (Math.PI * 2 * p) / 24 + Math.random() * 0.25;
+          const spd = 0.3 + Math.random() * 0.9;
+          state.particles.push({
+            x: bx + (Math.random() - 0.5) * 0.25,
+            y: by + (Math.random() - 0.5) * 0.25,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            life: 2.2 + Math.random() * 1.4,
+            maxLife: 3.6,
+            kind
+          });
+        }
+
+        showBanner(
+          kind === 'fart'
+            ? '💨 Sudden fart burst released! Watch how airflow and obstacles shape the plume.'
+            : '🧦 Smelly sock odor spike triggered! Observe how it spreads across the room.'
+        );
+      }
+
+      // ---------- Particles Update ----------
+      function updateParticles(dt) {
+        const cellW = state.roomWidth / NX;
+        const cellH = state.roomLength / NY;
+
+        if (state.particles.length < 200 && Math.random() < 0.7) {
+          const rx = Math.floor(Math.random() * NX);
+          const ry = Math.floor(Math.random() * NY);
+          const c = conc[idxOf(rx, ry)];
+          if (c > 4.0) {
+            state.particles.push({
+              x: (rx + 0.5) * cellW,
+              y: (ry + 0.5) * cellH,
+              vx: 0,
+              vy: 0,
+              life: 1.5 + Math.random() * 1.5,
+              maxLife: 3.0,
+              kind: 'ambient'
+            });
+          }
+        }
+
+        for (let i = state.particles.length - 1; i >= 0; i--) {
+          const pt = state.particles[i];
+          pt.life -= dt;
+          if (pt.life <= 0) {
+            state.particles.splice(i, 1);
+            continue;
+          }
+
+          const gix = clamp(Math.floor((pt.x / state.roomWidth) * NX), 0, NX - 1);
+          const giy = clamp(Math.floor((pt.y / state.roomLength) * NY), 0, NY - 1);
+          const gIdx = idxOf(gix, giy);
+
+          const flowX = vx[gIdx] || 0;
+          const flowY = vy[gIdx] || 0;
+
+          pt.vx = pt.vx * 0.85 + flowX * 0.35 + (Math.random() - 0.5) * 0.45;
+          pt.vy = pt.vy * 0.85 + flowY * 0.35 + (Math.random() - 0.5) * 0.45;
+
+          const nextX = pt.x + pt.vx * dt;
+          const nextY = pt.y + pt.vy * dt;
+
+          const ngx = clamp(Math.floor((nextX / state.roomWidth) * NX), 0, NX - 1);
+          const ngy = clamp(Math.floor((nextY / state.roomLength) * NY), 0, NY - 1);
+
+          if (nextX <= 0.05 || nextX >= state.roomWidth - 0.05 || solid[idxOf(gix, ngy)]) {
+            pt.vx *= -0.6;
+          } else {
+            pt.x = nextX;
+          }
+
+          if (nextY <= 0.05 || nextY >= state.roomLength - 0.05 || solid[idxOf(ngx, giy)]) {
+            pt.vy *= -0.6;
+          } else {
+            pt.y = nextY;
+          }
+        }
+      }
+
+      // ---------- Telemetry, Overview & Graph History ----------
+      function computeMetrics() {
+        let sum = 0;
+        let peak = 0;
+        let activeCells = 0;
+
+        for (let i = 0; i < CELL_COUNT; i++) {
+          if (solid[i]) continue;
+          const val = conc[i];
+          sum += val;
+          if (val > peak) peak = val;
+          activeCells++;
+        }
+
+        const avg = activeCells > 0 ? sum / activeCells : 0;
+        return {
+          avg,
+          peak,
+          removedTotal: state.escapedOdor + state.purifiedOdor
+        };
+      }
+
+      function recordHistorySample(force = false) {
+        if (!force && state.simTime - state.lastHistorySampleTime < 0.25) return;
+        state.lastHistorySampleTime = state.simTime;
+        const m = computeMetrics();
+        state.history.push({
+          t: state.simTime,
+          avg: m.avg,
+          peak: m.peak,
+          removed: m.removedTotal
+        });
+
+        const cutoff = state.simTime - MAX_HISTORY_SECONDS;
+        while (state.history.length > 2 && state.history[0].t < cutoff) {
+          state.history.shift();
+        }
+      }
+
+      function updateOverviewAndKPIs() {
+        const m = computeMetrics();
+        const avgPct = clamp(Math.round(m.avg * 2.2), 0, 100);
+
+        el.simClockBadge.textContent = `t = ${state.simTime.toFixed(1)}s`;
+        el.kpiAvgOdor.textContent = `${avgPct}%`;
+        el.kpiEscaped.textContent = `${state.escapedOdor.toFixed(1)} u`;
+        el.kpiPurified.textContent = `Scrubbed: ${state.purifiedOdor.toFixed(1)}`;
+
+        let rating = 'Fresh Air';
+        let ratingColor = 'text-emerald-400';
+        if (avgPct >= 45) {
+          rating = 'Overwhelming Stench';
+          ratingColor = 'text-rose-400';
+        } else if (avgPct >= 22) {
+          rating = 'Noticeable Odor';
+          ratingColor = 'text-amber-400';
+        } else if (avgPct >= 6) {
+          rating = 'Faint Whiff';
+          ratingColor = 'text-yellow-300';
+        }
+        el.kpiOdorRating.textContent = rating;
+        el.kpiOdorRating.className = `text-[11px] font-medium ${ratingColor}`;
+
+        const person = state.items.find((it) => it.type === 'person');
+        if (person) {
+          const pix = clamp(Math.floor((person.x / state.roomWidth) * NX), 0, NX - 1);
+          const piy = clamp(Math.floor((person.y / state.roomLength) * NY), 0, NY - 1);
+          const localVal = conc[idxOf(pix, piy)];
+          const localPct = clamp(Math.round(localVal * 2.2), 0, 100);
+          el.personExposureVal.textContent = `${localPct}% at nose (${localVal.toFixed(1)} u)`;
+          el.personExposureVal.className =
+            localPct >= 30
+              ? 'font-semibold text-rose-400'
+              : localPct >= 10
+              ? 'font-semibold text-amber-300'
+              : 'font-semibold text-emerald-300';
+        } else {
+          el.personExposureVal.textContent = 'No person placed';
+          el.personExposureVal.className = 'font-semibold text-slate-400';
+        }
+
+        const activeSources = state.items.filter((it) => it.emission > 0);
+        const obstacles = state.items.filter((it) => it.blocksAir);
+        const sourceText =
+          activeSources.length > 0
+            ? `${activeSources.length} smelly emitter(s) (${activeSources.map((s) => s.label).join(', ')}) emitting simultaneously`
+            : 'No continuous odor emitter active (use Sock/Fart burst buttons or add a smelly item)';
+
+        const openWins = state.openings.filter((o) => o.kind === 'window' && o.open).length;
+        const openDoors = state.openings.filter((o) => o.kind === 'door' && o.open).length;
+        const ventParts = [];
+        if (openWins > 0) ventParts.push(`${openWins} open window(s)`);
+        if (openDoors > 0) ventParts.push(`${openDoors} open door(s)`);
+        if (state.aircon.enabled) ventParts.push('split AC swirling air');
+        if (state.purifier.enabled) ventParts.push('carbon purifier scrubbing odor');
+        if (ventParts.length === 0) ventParts.push('closed openings & purifier off');
+
+        el.overviewSummaryText.textContent = `${sourceText} in a ${state.roomWidth.toFixed(1)}m × ${state.roomLength.toFixed(1)}m room with ${obstacles.length} solid obstacle(s). Active airflow: ${ventParts.join(', ')}.`;
+
+        if (openWins === 0 && openDoors === 0 && !state.purifier.enabled) {
+          el.overviewVentilationNote.textContent =
+            '⚠️ All windows and doors are closed and purifier is off: odor accumulates indoors.';
+        } else if (state.purifier.enabled) {
+          el.overviewVentilationNote.textContent =
+            '✅ Activated carbon purifier is actively scrubbing odor molecules indoors.';
+        } else {
+          el.overviewVentilationNote.textContent =
+            '💨 Open windows and doors let odor plumes escape while diluting indoor concentration.';
+        }
+      }
+
+      // ---------- Canvas 1: 2D Spatial Room Diagram ----------
+      function resizeCanvasToParent(canvas, ctx) {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const targetW = Math.max(100, Math.floor(rect.width * dpr));
+        const targetH = Math.max(100, Math.floor(rect.height * dpr));
+        if (canvas.width !== targetW || canvas.height !== targetH) {
+          canvas.width = targetW;
+          canvas.height = targetH;
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { width: rect.width, height: rect.height };
+      }
+
+      function drawRoomDiagram() {
+        const { width, height } = resizeCanvasToParent(el.roomCanvas, roomCtx);
+        roomCtx.clearRect(0, 0, width, height);
+
+        const pad = 36;
+        const availW = Math.max(80, width - pad * 2);
+        const availH = Math.max(80, height - pad * 2);
+        const scale = Math.min(availW / state.roomWidth, availH / state.roomLength);
+        const drawW = state.roomWidth * scale;
+        const drawH = state.roomLength * scale;
+        const offsetX = (width - drawW) * 0.5;
+        const offsetY = (height - drawH) * 0.5;
+
+        diagramTransform = { offsetX, offsetY, scale, drawW, drawH };
+
+        roomCtx.fillStyle = '#070b14';
+        roomCtx.fillRect(0, 0, width, height);
+
+        roomCtx.fillStyle = '#111827';
+        roomCtx.fillRect(offsetX, offsetY, drawW, drawH);
+
+        // 1-meter floor grid lines
+        roomCtx.strokeStyle = 'rgba(148, 163, 184, 0.10)';
+        roomCtx.lineWidth = 1;
+        for (let gx = 1; gx < state.roomWidth; gx++) {
+          const x = offsetX + gx * scale;
+          roomCtx.beginPath();
+          roomCtx.moveTo(x, offsetY);
+          roomCtx.lineTo(x, offsetY + drawH);
+          roomCtx.stroke();
+        }
+        for (let gy = 1; gy < state.roomLength; gy++) {
+          const y = offsetY + gy * scale;
+          roomCtx.beginPath();
+          roomCtx.moveTo(offsetX, y);
+          roomCtx.lineTo(offsetX + drawW, y);
+          roomCtx.stroke();
+        }
+
+        // Odor Concentration Heatmap Overlay
+        if (state.showHeatmap) {
+          const cw = drawW / NX;
+          const ch = drawH / NY;
+          for (let iy = 0; iy < NY; iy++) {
+            for (let ix = 0; ix < NX; ix++) {
+              const i = idxOf(ix, iy);
+              if (solid[i]) continue;
+              const c = conc[i];
+              if (c <= 0.15) continue;
+
+              const norm = clamp(c / 35, 0, 1);
+              const r = Math.round(245 + norm * 10);
+              const g = Math.round(158 * (1 - norm * 0.78));
+              const b = Math.round(11 + norm * 55);
+              const alpha = clamp(0.08 + norm * 0.58, 0, 0.66);
+
+              roomCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+              roomCtx.fillRect(offsetX + ix * cw, offsetY + iy * ch, cw + 0.6, ch + 0.6);
+            }
+          }
+        }
+
+        // Solid Obstacle Fill Mask
+        const cw = drawW / NX;
+        const ch = drawH / NY;
+        for (let iy = 0; iy < NY; iy++) {
+          for (let ix = 0; ix < NX; ix++) {
+            if (solid[idxOf(ix, iy)]) {
+              roomCtx.fillStyle = '#0f172a';
+              roomCtx.fillRect(offsetX + ix * cw, offsetY + iy * ch, cw + 0.5, ch + 0.5);
+            }
+          }
+        }
+
+        // Outer Room Walls
+        roomCtx.strokeStyle = '#475569';
+        roomCtx.lineWidth = 5;
+        roomCtx.strokeRect(offsetX, offsetY, drawW, drawH);
+
+        // Draw ALL Windows & Doors on Walls
+        state.openings.forEach((op, index) => {
+          const isWin = op.kind === 'window';
+          const color = isWin ? '#22d3ee' : '#fbbf24';
+          const tag = isWin ? `WIN ${index + 1}` : `DOOR ${index + 1}`;
+          const label = op.open ? tag : `${tag} (CLOSED)`;
+          drawOpeningOnWall(op, color, label, op.id === state.draggingOpeningId);
+        });
+
+        // Draw Split Aircon Marker
+        if (state.aircon.enabled) {
+          const ac = getAirconPose();
+          const ax = offsetX + ac.x * scale;
+          const ay = offsetY + ac.y * scale;
+          roomCtx.save();
+          roomCtx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+          roomCtx.strokeStyle = '#38bdf8';
+          roomCtx.lineWidth = 2;
+          roomCtx.beginPath();
+          roomCtx.arc(ax, ay, 13, 0, Math.PI * 2);
+          roomCtx.fill();
+          roomCtx.stroke();
+          roomCtx.font = '11px Inter, sans-serif';
+          roomCtx.textAlign = 'center';
+          roomCtx.textBaseline = 'middle';
+          roomCtx.fillText('❄️', ax, ay + 0.5);
+          roomCtx.restore();
+        }
+
+        // Draw Purifier Marker
+        if (state.purifier.enabled) {
+          const pur = getPurifierPosition();
+          const px = offsetX + pur.x * scale;
+          const py = offsetY + pur.y * scale;
+          const pulse = 16 + Math.sin(state.simTime * 5) * 3;
+          roomCtx.save();
+          roomCtx.strokeStyle = 'rgba(192, 132, 252, 0.45)';
+          roomCtx.lineWidth = 1.5;
+          roomCtx.beginPath();
+          roomCtx.arc(px, py, pulse, 0, Math.PI * 2);
+          roomCtx.stroke();
+
+          roomCtx.fillStyle = 'rgba(139, 92, 246, 0.28)';
+          roomCtx.strokeStyle = '#a78bfa';
+          roomCtx.lineWidth = 2;
+          roomCtx.beginPath();
+          roomCtx.arc(px, py, 13, 0, Math.PI * 2);
+          roomCtx.fill();
+          roomCtx.stroke();
+
+          roomCtx.font = '11px Inter, sans-serif';
+          roomCtx.textAlign = 'center';
+          roomCtx.textBaseline = 'middle';
+          roomCtx.fillText('🌀', px, py + 0.5);
+          roomCtx.restore();
+        }
+
+        // Draw Placed Items
+        for (const item of state.items) {
+          const ix = offsetX + item.x * scale;
+          const iy = offsetY + item.y * scale;
+          const iw = item.w * scale;
+          const ih = item.h * scale;
+          const isSelected = item.id === state.selectedItemId;
+
+          roomCtx.save();
+          roomCtx.translate(ix, iy);
+          roomCtx.rotate(item.angle);
+
+          roomCtx.fillStyle = item.fill;
+          roomCtx.strokeStyle = isSelected ? '#ffffff' : item.color;
+          roomCtx.lineWidth = isSelected ? 2.5 : 1.75;
+
+          const r = Math.min(8, iw * 0.2, ih * 0.2);
+          roundRectPath(roomCtx, -iw * 0.5, -ih * 0.5, iw, ih, r);
+          roomCtx.fill();
+          roomCtx.stroke();
+
+          roomCtx.rotate(-item.angle);
+          roomCtx.textAlign = 'center';
+          roomCtx.textBaseline = 'middle';
+          roomCtx.font = `${clamp(Math.min(iw, ih) * 0.48, 13, 22)}px Inter, sans-serif`;
+          roomCtx.fillText(item.emoji, 0, -2);
+
+          if (Math.min(iw, ih) >= 28) {
+            roomCtx.fillStyle = '#f1f5f9';
+            roomCtx.font = '600 10px Inter, sans-serif';
+            roomCtx.fillText(item.label, 0, Math.min(ih * 0.34, 14));
+          }
+
+          roomCtx.restore();
+        }
+
+        // Draw Airflow Velocity Arrows
+        if (state.showVectors) {
+          const stepX = 4;
+          const stepY = 4;
+          for (let iy = 2; iy < NY - 1; iy += stepY) {
+            for (let ix = 2; ix < NX - 1; ix += stepX) {
+              const i = idxOf(ix, iy);
+              if (solid[i]) continue;
+              const u = vx[i];
+              const v = vy[i];
+              const mag = Math.hypot(u, v);
+              if (mag < 0.08) continue;
+
+              const sx = offsetX + ((ix + 0.5) / NX) * drawW;
+              const sy = offsetY + ((iy + 0.5) / NY) * drawH;
+              const arrowLen = clamp(mag * 9.5, 5, 16);
+              const nx = u / mag;
+              const ny = v / mag;
+              const ex = sx + nx * arrowLen;
+              const ey = sy + ny * arrowLen;
+
+              roomCtx.save();
+              roomCtx.strokeStyle = `rgba(56, 189, 248, ${clamp(0.32 + mag * 0.22, 0.32, 0.85)})`;
+              roomCtx.lineWidth = 1.5;
+              roomCtx.beginPath();
+              roomCtx.moveTo(sx, sy);
+              roomCtx.lineTo(ex, ey);
+              roomCtx.stroke();
+
+              const headLen = 4.5;
+              const ang = Math.atan2(ny, nx);
+              roomCtx.fillStyle = roomCtx.strokeStyle;
+              roomCtx.beginPath();
+              roomCtx.moveTo(ex, ey);
+              roomCtx.lineTo(ex - headLen * Math.cos(ang - 0.55), ey - headLen * Math.sin(ang - 0.55));
+              roomCtx.lineTo(ex - headLen * Math.cos(ang + 0.55), ey - headLen * Math.sin(ang + 0.55));
+              roomCtx.closePath();
+              roomCtx.fill();
+              roomCtx.restore();
+            }
+          }
+        }
+
+        // Draw Odor Molecule Particles
+        if (state.showParticles) {
+          for (const pt of state.particles) {
+            const px = offsetX + pt.x * scale;
+            const py = offsetY + pt.y * scale;
+            const alpha = clamp(pt.life / pt.maxLife, 0, 1) * 0.85;
+            roomCtx.fillStyle =
+              pt.kind === 'fart'
+                ? `rgba(52, 211, 153, ${alpha.toFixed(2)})`
+                : pt.kind === 'sock'
+                ? `rgba(251, 191, 36, ${alpha.toFixed(2)})`
+                : `rgba(248, 113, 113, ${(alpha * 0.75).toFixed(2)})`;
+            roomCtx.beginPath();
+            roomCtx.arc(px, py, pt.kind === 'ambient' ? 2.3 : 3.2, 0, Math.PI * 2);
+            roomCtx.fill();
+          }
+        }
+      }
+
+      function drawOpeningOnWall(opening, color, label, isDragging) {
+        const { offsetX, offsetY, scale, drawW, drawH } = diagramTransform;
+        const frac = clamp(opening.posFrac, 0.14, 0.86);
+        const spanPx = opening.widthMeters * scale;
+
+        roomCtx.save();
+        roomCtx.strokeStyle = isDragging ? '#ffffff' : opening.open ? color : '#64748b';
+        roomCtx.lineWidth = opening.open ? 7 : 4.5;
+        if (!opening.open) {
+          roomCtx.setLineDash([4, 4]);
+        }
+
+        let lx = offsetX;
+        let ly = offsetY;
+
+        if (opening.wall === 'top' || opening.wall === 'bottom') {
+          const cx = offsetX + frac * drawW;
+          const y = opening.wall === 'top' ? offsetY : offsetY + drawH;
+          roomCtx.beginPath();
+          roomCtx.moveTo(cx - spanPx * 0.5, y);
+          roomCtx.lineTo(cx + spanPx * 0.5, y);
+          roomCtx.stroke();
+          lx = cx;
+          ly = opening.wall === 'top' ? y - 13 : y + 14;
+        } else {
+          const cy = offsetY + frac * drawH;
+          const x = opening.wall === 'left' ? offsetX : offsetX + drawW;
+          roomCtx.beginPath();
+          roomCtx.moveTo(x, cy - spanPx * 0.5);
+          roomCtx.lineTo(x, cy + spanPx * 0.5);
+          roomCtx.stroke();
+          lx = opening.wall === 'left' ? x - 6 : x + 6;
+          ly = cy - spanPx * 0.5 - 9;
+        }
+
+        roomCtx.setLineDash([]);
+        roomCtx.fillStyle = isDragging ? '#ffffff' : opening.open ? color : '#94a3b8';
+        roomCtx.font = 'bold 10px Inter, sans-serif';
+        roomCtx.textAlign = 'center';
+        roomCtx.textBaseline = 'middle';
+        roomCtx.fillText(label, lx, ly);
+        roomCtx.restore();
+      }
+
+      function roundRectPath(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      // ---------- Canvas 2: Real-Time Odor Concentration Graph ----------
+      function drawConcentrationGraph() {
+        const { width, height } = resizeCanvasToParent(el.graphCanvas, graphCtx);
+        graphCtx.clearRect(0, 0, width, height);
+
+        const padL = 42;
+        const padR = 14;
+        const padT = 14;
+        const padB = 26;
+        const plotW = Math.max(40, width - padL - padR);
+        const plotH = Math.max(40, height - padT - padB);
+
+        graphCtx.fillStyle = '#070b14';
+        graphCtx.fillRect(0, 0, width, height);
+
+        graphCtx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
+        graphCtx.lineWidth = 1;
+        graphCtx.fillStyle = '#94a3b8';
+        graphCtx.font = '10px Inter, sans-serif';
+        graphCtx.textAlign = 'right';
+        graphCtx.textBaseline = 'middle';
+
+        let maxVal = 15;
+        for (const pt of state.history) {
+          if (pt.peak > maxVal) maxVal = pt.peak;
+          if (pt.removed > maxVal) maxVal = pt.removed;
+        }
+        maxVal = Math.ceil(maxVal / 10) * 10;
+
+        for (let g = 0; g <= 4; g++) {
+          const frac = g / 4;
+          const y = padT + plotH - frac * plotH;
+          graphCtx.beginPath();
+          graphCtx.moveTo(padL, y);
+          graphCtx.lineTo(padL + plotW, y);
+          graphCtx.stroke();
+
+          graphCtx.fillText((frac * maxVal).toFixed(0), padL - 6, y);
+        }
+
+        if (state.history.length < 2) {
+          graphCtx.fillStyle = '#64748b';
+          graphCtx.textAlign = 'center';
+          graphCtx.fillText('Collecting time-series data...', padL + plotW * 0.5, padT + plotH * 0.5);
+          return;
+        }
+
+        const tStart = state.history[0].t;
+        const tEnd = Math.max(state.history[state.history.length - 1].t, tStart + 5);
+        const tSpan = Math.max(1, tEnd - tStart);
+
+        const xOfT = (t) => padL + ((t - tStart) / tSpan) * plotW;
+        const yOfV = (v) => padT + plotH - clamp(v / maxVal, 0, 1.05) * plotH;
+
+        graphCtx.textAlign = 'center';
+        graphCtx.textBaseline = 'top';
+        for (let k = 0; k <= 4; k++) {
+          const tTick = tStart + (k / 4) * tSpan;
+          const x = padL + (k / 4) * plotW;
+          graphCtx.fillText(`${tTick.toFixed(0)}s`, x, padT + plotH + 6);
+        }
+
+        const plotSeries = (getter, strokeColor, lineWidth) => {
+          graphCtx.save();
+          graphCtx.strokeStyle = strokeColor;
+          graphCtx.lineWidth = lineWidth;
+          graphCtx.beginPath();
+          state.history.forEach((pt, idx) => {
+            const x = xOfT(pt.t);
+            const y = yOfV(getter(pt));
+            if (idx === 0) graphCtx.moveTo(x, y);
+            else graphCtx.lineTo(x, y);
+          });
+          graphCtx.stroke();
+          graphCtx.restore();
+        };
+
+        plotSeries((p) => p.removed, '#22d3ee', 2);
+        plotSeries((p) => p.peak, '#f43f5e', 1.8);
+        plotSeries((p) => p.avg, '#fbbf24', 2.4);
+      }
+
+      // ---------- Pointer / Touch Dragging for Items AND Windows/Doors ----------
+      function clientToRoomMeters(clientX, clientY) {
+        const rect = el.roomCanvas.getBoundingClientRect();
+        const cx = clientX - rect.left;
+        const cy = clientY - rect.top;
+        const mx = (cx - diagramTransform.offsetX) / diagramTransform.scale;
+        const my = (cy - diagramTransform.offsetY) / diagramTransform.scale;
+        return { mx, my };
+      }
+
+      function hitTestOpening(mx, my) {
+        const threshold = 0.35; // meters tolerance near wall/opening
+        for (let i = state.openings.length - 1; i >= 0; i--) {
+          const op = state.openings[i];
+          const center = getOpeningCenterMeters(op);
+          const halfSpan = op.widthMeters * 0.5 + 0.15;
+
+          if (op.wall === 'top' || op.wall === 'bottom') {
+            if (Math.abs(my - center.y) <= threshold && Math.abs(mx - center.x) <= halfSpan) {
+              return op;
+            }
+          } else {
+            if (Math.abs(mx - center.x) <= threshold && Math.abs(my - center.y) <= halfSpan) {
+              return op;
+            }
+          }
+        }
+        return null;
+      }
+
+      function hitTestItem(mx, my) {
+        for (let i = state.items.length - 1; i >= 0; i--) {
+          const item = state.items[i];
+          const b = getEffectiveBounds(item);
+          if (mx >= b.left - 0.08 && mx <= b.right + 0.08 && my >= b.top - 0.08 && my <= b.bottom + 0.08) {
+            return item;
+          }
+        }
+        return null;
+      }
+
+      function onPointerDown(e) {
+        const { mx, my } = clientToRoomMeters(e.clientX, e.clientY);
+
+        // 1. Check if user grabbed a window or door along a wall
+        const opHit = hitTestOpening(mx, my);
+        if (opHit) {
+          state.draggingOpeningId = opHit.id;
+          state.draggingItemId = null;
+          drawRoomDiagram();
+          return;
+        }
+
+        // 2. Otherwise check placed room items
+        const hit = hitTestItem(mx, my);
+        if (hit) {
+          state.selectedItemId = hit.id;
+          state.draggingItemId = hit.id;
+          state.dragOffsetX = mx - hit.x;
+          state.dragOffsetY = my - hit.y;
+          syncSelectedItemUI();
+          renderActiveEmitters();
+          drawRoomDiagram();
+        } else {
+          state.selectedItemId = null;
+          syncSelectedItemUI();
+          renderActiveEmitters();
+          drawRoomDiagram();
+        }
+      }
+
+      function onPointerMove(e) {
+        const { mx, my } = clientToRoomMeters(e.clientX, e.clientY);
+
+        if (state.draggingOpeningId) {
+          const op = state.openings.find((o) => o.id === state.draggingOpeningId);
+          if (!op) return;
+
+          // Snap to nearest wall if pointer is near an outer wall
+          const distTop = Math.abs(my);
+          const distBottom = Math.abs(state.roomLength - my);
+          const distLeft = Math.abs(mx);
+          const distRight = Math.abs(state.roomWidth - mx);
+          const minEdge = Math.min(distTop, distBottom, distLeft, distRight);
+
+          if (minEdge < 0.75) {
+            if (minEdge === distTop) op.wall = 'top';
+            else if (minEdge === distBottom) op.wall = 'bottom';
+            else if (minEdge === distLeft) op.wall = 'left';
+            else op.wall = 'right';
+          }
+
+          if (op.wall === 'top' || op.wall === 'bottom') {
+            op.posFrac = clamp(mx / state.roomWidth, 0.14, 0.86);
+          } else {
+            op.posFrac = clamp(my / state.roomLength, 0.14, 0.86);
+          }
+
+          renderOpeningsList();
+          computeVelocityField();
+          drawRoomDiagram();
+          return;
+        }
+
+        if (!state.draggingItemId) return;
+        const item = state.items.find((it) => it.id === state.draggingItemId);
+        if (!item) return;
+
+        const b = getEffectiveBounds(item);
+        const halfW = b.ew * 0.5;
+        const halfH = b.eh * 0.5;
+
+        item.x = clamp(mx - state.dragOffsetX, halfW + 0.05, state.roomWidth - halfW - 0.05);
+        item.y = clamp(my - state.dragOffsetY, halfH + 0.05, state.roomLength - halfH - 0.05);
+
+        rebuildSolidGrid();
+        computeVelocityField();
+        drawRoomDiagram();
+      }
+
+      function onPointerUp() {
+        state.draggingItemId = null;
+        state.draggingOpeningId = null;
+      }
+
+      // ---------- Dynamic UI Rendering: Windows/Doors & Smelly Emitters ----------
+      function renderOpeningsList() {
+        el.openingsList.innerHTML = '';
+
+        if (state.openings.length === 0) {
+          el.openingsList.innerHTML =
+            '<div class="text-xs text-slate-400 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 text-center">No windows or doors placed. Click "+ Add Window" or "+ Add Door" above.</div>';
+          return;
+        }
+
+        state.openings.forEach((op, idx) => {
+          const isWin = op.kind === 'window';
+          const card = document.createElement('div');
+          card.className = 'bg-slate-900/75 border border-slate-800/90 rounded-2xl p-3 space-y-2';
+
+          const headerRow = document.createElement('div');
+          headerRow.className = 'flex items-center justify-between gap-2';
+
+          const titleSpan = document.createElement('span');
+          titleSpan.className = `text-xs font-semibold flex items-center gap-1.5 ${isWin ? 'text-cyan-300' : 'text-amber-300'}`;
+          titleSpan.textContent = `${isWin ? '🪟' : '🚪'} ${isWin ? 'Window' : 'Door'} #${idx + 1}`;
+
+          const rightControls = document.createElement('div');
+          rightControls.className = 'flex items-center gap-2';
+
+          const openLabel = document.createElement('label');
+          openLabel.className = 'inline-flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer';
+          const openChk = document.createElement('input');
+          openChk.type = 'checkbox';
+          openChk.checked = op.open;
+          openChk.className = `rounded w-3.5 h-3.5 cursor-pointer ${isWin ? 'accent-cyan-400' : 'accent-amber-400'}`;
+          openChk.addEventListener('change', () => {
+            op.open = openChk.checked;
+            computeVelocityField();
+            updateOverviewAndKPIs();
+            drawRoomDiagram();
+          });
+          openLabel.appendChild(openChk);
+          openLabel.appendChild(document.createTextNode('Open'));
+
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'text-[11px] text-rose-400 hover:text-rose-200 px-1.5 py-0.5 rounded-lg hover:bg-rose-500/15 transition';
+          delBtn.textContent = '✕';
+          delBtn.title = `Remove ${isWin ? 'window' : 'door'}`;
+          delBtn.addEventListener('click', () => {
+            state.openings = state.openings.filter((o) => o.id !== op.id);
+            renderOpeningsList();
+            computeVelocityField();
+            updateOverviewAndKPIs();
+            drawRoomDiagram();
+            showBanner(`Removed ${isWin ? 'window' : 'door'} #${idx + 1}.`);
+          });
+
+          rightControls.appendChild(openLabel);
+          rightControls.appendChild(delBtn);
+          headerRow.appendChild(titleSpan);
+          headerRow.appendChild(rightControls);
+
+          const gridRow = document.createElement('div');
+          gridRow.className = 'grid grid-cols-2 gap-2';
+
+          // Wall selector
+          const wallWrap = document.createElement('div');
+          const wallLbl = document.createElement('label');
+          wallLbl.className = 'block text-[10px] text-slate-400 mb-0.5';
+          wallLbl.textContent = 'Wall';
+          const wallSel = document.createElement('select');
+          wallSel.className = 'w-full bg-slate-950 border border-slate-700/90 rounded-xl px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-sky-400';
+          [
+            ['top', 'Top Wall'],
+            ['bottom', 'Bottom Wall'],
+            ['left', 'Left Wall'],
+            ['right', 'Right Wall']
+          ].forEach(([val, txt]) => {
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = txt;
+            if (op.wall === val) opt.selected = true;
+            wallSel.appendChild(opt);
+          });
+          wallSel.addEventListener('change', () => {
+            op.wall = wallSel.value;
+            computeVelocityField();
+            drawRoomDiagram();
+          });
+          wallWrap.appendChild(wallLbl);
+          wallWrap.appendChild(wallSel);
+
+          // Position slider
+          const posWrap = document.createElement('div');
+          const posTop = document.createElement('div');
+          posTop.className = 'flex justify-between text-[10px] mb-0.5';
+          const posLbl = document.createElement('span');
+          posLbl.className = 'text-slate-400';
+          posLbl.textContent = 'Along Wall';
+          const posVal = document.createElement('span');
+          posVal.className = 'text-slate-300 font-medium';
+          posVal.textContent = `${Math.round(op.posFrac * 100)}%`;
+          posTop.appendChild(posLbl);
+          posTop.appendChild(posVal);
+
+          const posRange = document.createElement('input');
+          posRange.type = 'range';
+          posRange.min = '14';
+          posRange.max = '86';
+          posRange.step = '2';
+          posRange.value = String(Math.round(op.posFrac * 100));
+          posRange.className = 'modern-range w-full mt-1';
+          posRange.addEventListener('input', () => {
+            const pct = parseInt(posRange.value, 10);
+            op.posFrac = pct / 100;
+            posVal.textContent = `${pct}%`;
+            computeVelocityField();
+            drawRoomDiagram();
+          });
+          posWrap.appendChild(posTop);
+          posWrap.appendChild(posRange);
+
+          gridRow.appendChild(wallWrap);
+          gridRow.appendChild(posWrap);
+
+          card.appendChild(headerRow);
+          card.appendChild(gridRow);
+
+          if (isWin) {
+            const modeWrap = document.createElement('div');
+            const modeSel = document.createElement('select');
+            modeSel.className = 'w-full bg-slate-950 border border-slate-700/90 rounded-xl px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-400';
+            [
+              ['in', 'Fresh Air Blowing IN (→ Room)'],
+              ['out', 'Exhaust / Draft Blowing OUT (→ Outside)'],
+              ['passive', 'Passive Natural Exchange (In & Out)']
+            ].forEach(([val, txt]) => {
+              const opt = document.createElement('option');
+              opt.value = val;
+              opt.textContent = txt;
+              if (op.mode === val) opt.selected = true;
+              modeSel.appendChild(opt);
+            });
+            modeSel.addEventListener('change', () => {
+              op.mode = modeSel.value;
+              computeVelocityField();
+              updateOverviewAndKPIs();
+            });
+            modeWrap.appendChild(modeSel);
+            card.appendChild(modeWrap);
+          }
+
+          el.openingsList.appendChild(card);
+        });
+      }
+
+      function renderActiveEmitters() {
+        const emitters = state.items.filter((it) => it.isOdorSource || it.emission > 0);
+        const activeCount = emitters.filter((it) => it.emission > 0).length;
+        el.activeEmittersCount.textContent = `${activeCount} emitting`;
+        el.activeEmittersList.innerHTML = '';
+
+        if (emitters.length === 0) {
+          el.activeEmittersList.innerHTML = '<span class="text-[11px] text-slate-500">None added yet</span>';
+          return;
+        }
+
+        emitters.forEach((em) => {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          const isSelected = em.id === state.selectedItemId;
+          chip.className = `pill-btn inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+            isSelected
+              ? 'bg-amber-400/25 text-amber-200 border-amber-300'
+              : 'bg-slate-900/90 text-slate-300 border-slate-700/80 hover:border-amber-400/50'
+          }`;
+          chip.textContent = `${em.emoji} ${em.label} (${em.emission}/10)`;
+          chip.addEventListener('click', () => {
+            state.selectedItemId = em.id;
+            syncSelectedItemUI();
+            renderActiveEmitters();
+            drawRoomDiagram();
+          });
+          el.activeEmittersList.appendChild(chip);
+        });
+      }
+
+      function syncSelectedItemUI() {
+        const item = state.items.find((it) => it.id === state.selectedItemId);
+        if (!item) {
+          el.selectedItemName.textContent = 'None';
+          el.btnRotateItem.disabled = true;
+          el.btnDeleteItem.disabled = true;
+          el.sourceEmissionControls.classList.add('hidden');
+          return;
+        }
+
+        el.selectedItemName.textContent = `${item.emoji} ${item.label}`;
+        el.btnRotateItem.disabled = false;
+        el.btnDeleteItem.disabled = false;
+
+        if (item.isOdorSource || item.emission > 0) {
+          el.sourceEmissionControls.classList.remove('hidden');
+          el.emissionRateRange.value = String(item.emission);
+          el.emissionRateVal.textContent = item.emission === 0 ? 'Off' : `${item.emission}/10`;
+        } else {
+          el.sourceEmissionControls.classList.add('hidden');
+        }
+      }
+
+      function handleRoomDimensionChange() {
+        state.roomWidth = parseFloat(el.roomWidthRange.value);
+        state.roomLength = parseFloat(el.roomLengthRange.value);
+        el.roomWidthVal.textContent = `${state.roomWidth.toFixed(1)} m`;
+        el.roomLengthVal.textContent = `${state.roomLength.toFixed(1)} m`;
+        el.roomAreaBadge.textContent = `${(state.roomWidth * state.roomLength).toFixed(1)} m²`;
+
+        for (const item of state.items) {
+          const b = getEffectiveBounds(item);
+          item.x = clamp(item.x, b.ew * 0.5 + 0.05, state.roomWidth - b.ew * 0.5 - 0.05);
+          item.y = clamp(item.y, b.eh * 0.5 + 0.05, state.roomLength - b.eh * 0.5 - 0.05);
+        }
+
+        rebuildSolidGrid();
+        computeVelocityField();
+        updateOverviewAndKPIs();
+        drawRoomDiagram();
+      }
+
+      function bindEvents() {
+        el.btnPlayPause.addEventListener('click', () => {
+          state.running = !state.running;
+          el.playPauseIcon.textContent = state.running ? '⏸' : '▶';
+          el.playPauseLabel.textContent = state.running ? 'Pause' : 'Resume';
+        });
+
+        el.btnStep.addEventListener('click', () => {
+          state.running = false;
+          el.playPauseIcon.textContent = '▶';
+          el.playPauseLabel.textContent = 'Resume';
+          const steps = Math.round(1.0 / DT_FIXED);
+          for (let s = 0; s < steps; s++) {
+            state.simTime += DT_FIXED;
+            computeVelocityField();
+            stepOdorPhysics(DT_FIXED);
+            updateParticles(DT_FIXED);
+          }
+          recordHistorySample(true);
+          updateOverviewAndKPIs();
+          drawRoomDiagram();
+          drawConcentrationGraph();
+        });
+
+        el.btnReset.addEventListener('click', () => {
+          conc.fill(0);
+          nextConc.fill(0);
+          state.simTime = 0;
+          state.accumulator = 0;
+          state.escapedOdor = 0;
+          state.purifiedOdor = 0;
+          state.particles = [];
+          state.history = [];
+          populateDefaultRoom();
+          recordHistorySample(true);
+          updateOverviewAndKPIs();
+          drawRoomDiagram();
+          drawConcentrationGraph();
+          showBanner('Simulation reset to t = 0.0s with default room layout.');
+        });
+
+        el.btnSockBurst.addEventListener('click', () => triggerOdorBurst('sock'));
+        el.btnFartBurst.addEventListener('click', () => triggerOdorBurst('fart'));
+        el.btnDismissBanner.addEventListener('click', hideBanner);
+
+        // Add Window / Add Door
+        el.btnAddWindow.addEventListener('click', () => {
+          const walls = ['top', 'right', 'left', 'bottom'];
+          const nextWall = walls[state.openings.filter((o) => o.kind === 'window').length % walls.length];
+          const win = createOpening('window', {
+            open: true,
+            wall: nextWall,
+            posFrac: 0.35 + Math.random() * 0.35,
+            widthMeters: 1.05,
+            mode: 'in'
+          });
+          state.openings.push(win);
+          renderOpeningsList();
+          computeVelocityField();
+          updateOverviewAndKPIs();
+          drawRoomDiagram();
+          showBanner(`Added a new window on the ${nextWall} wall. Drag it along the wall anytime!`);
+        });
+
+        el.btnAddDoor.addEventListener('click', () => {
+          const walls = ['bottom', 'left', 'right', 'top'];
+          const nextWall = walls[state.openings.filter((o) => o.kind === 'door').length % walls.length];
+          const door = createOpening('door', {
+            open: true,
+            wall: nextWall,
+            posFrac: 0.3 + Math.random() * 0.4,
+            widthMeters: 0.9,
+            mode: 'passive'
+          });
+          state.openings.push(door);
+          renderOpeningsList();
+          computeVelocityField();
+          updateOverviewAndKPIs();
+          drawRoomDiagram();
+          showBanner(`Added a new doorway on the ${nextWall} wall. Drag it along the wall anytime!`);
+        });
+
+        // Room dimensions
+        el.roomWidthRange.addEventListener('input', handleRoomDimensionChange);
+        el.roomLengthRange.addEventListener('input', handleRoomDimensionChange);
+
+        // Breeze & HVAC & Purifier
+        el.breezeStrengthRange.addEventListener('input', () => {
+          state.breezeSpeed = parseFloat(el.breezeStrengthRange.value);
+          el.breezeStrengthVal.textContent = `${state.breezeSpeed.toFixed(1)} m/s`;
+          computeVelocityField();
+        });
+
+        el.airconToggle.addEventListener('change', () => {
+          state.aircon.enabled = el.airconToggle.checked;
+          computeVelocityField();
+          updateOverviewAndKPIs();
+        });
+        el.airconWallSelect.addEventListener('change', () => {
+          state.aircon.wall = el.airconWallSelect.value;
+          computeVelocityField();
+        });
+        el.airconPowerRange.addEventListener('input', () => {
+          state.aircon.power = parseInt(el.airconPowerRange.value, 10);
+          const labels = { 1: 'Low', 2: 'Medium', 3: 'Turbo' };
+          el.airconPowerVal.textContent = labels[state.aircon.power] || 'Medium';
+          computeVelocityField();
+        });
+
+        el.purifierToggle.addEventListener('change', () => {
+          state.purifier.enabled = el.purifierToggle.checked;
+          computeVelocityField();
+          updateOverviewAndKPIs();
+        });
+        el.purifierRateRange.addEventListener('input', () => {
+          state.purifier.level = parseInt(el.purifierRateRange.value, 10);
+          const labels = { 1: 'Low (120 m³/h)', 2: 'Med (210 m³/h)', 3: 'High (300 m³/h)' };
+          el.purifierRateVal.textContent = labels[state.purifier.level] || 'High (300 m³/h)';
+          computeVelocityField();
+        });
+
+        // Add items buttons (supports multiple smelly things & room stuff)
+        document.querySelectorAll('.add-item-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const type = btn.getAttribute('data-add-type');
+            const jitterX = state.roomWidth * (0.2 + Math.random() * 0.6);
+            const jitterY = state.roomLength * (0.2 + Math.random() * 0.6);
+            const item = createItem(type, jitterX, jitterY);
+            state.items.push(item);
+            state.selectedItemId = item.id;
+            syncSelectedItemUI();
+            renderActiveEmitters();
+            rebuildSolidGrid();
+            computeVelocityField();
+            updateOverviewAndKPIs();
+            drawRoomDiagram();
+            showBanner(`Added ${item.label}. Multiple smelly sources emit odor at the same time!`);
+          });
+        });
+
+        // Selected item actions
+        el.btnRotateItem.addEventListener('click', () => {
+          const item = state.items.find((it) => it.id === state.selectedItemId);
+          if (!item) return;
+          item.angle = item.angle === 0 ? Math.PI / 2 : 0;
+          const b = getEffectiveBounds(item);
+          item.x = clamp(item.x, b.ew * 0.5 + 0.05, state.roomWidth - b.ew * 0.5 - 0.05);
+          item.y = clamp(item.y, b.eh * 0.5 + 0.05, state.roomLength - b.eh * 0.5 - 0.05);
+          rebuildSolidGrid();
+          computeVelocityField();
+          drawRoomDiagram();
+        });
+
+        el.btnDeleteItem.addEventListener('click', () => {
+          if (!state.selectedItemId) return;
+          const removed = state.items.find((it) => it.id === state.selectedItemId);
+          state.items = state.items.filter((it) => it.id !== state.selectedItemId);
+          state.selectedItemId = null;
+          syncSelectedItemUI();
+          renderActiveEmitters();
+          rebuildSolidGrid();
+          computeVelocityField();
+          updateOverviewAndKPIs();
+          drawRoomDiagram();
+          if (removed) showBanner(`Removed ${removed.label}.`);
+        });
+
+        el.btnClearItems.addEventListener('click', () => {
+          state.items = [];
+          state.selectedItemId = null;
+          syncSelectedItemUI();
+          renderActiveEmitters();
+          rebuildSolidGrid();
+          computeVelocityField();
+          updateOverviewAndKPIs();
+          drawRoomDiagram();
+          showBanner('Cleared all items and smelly sources from the room.');
+        });
+
+        el.emissionRateRange.addEventListener('input', () => {
+          const item = state.items.find((it) => it.id === state.selectedItemId);
+          if (!item) return;
+          item.emission = parseInt(el.emissionRateRange.value, 10);
+          el.emissionRateVal.textContent = item.emission === 0 ? 'Off' : `${item.emission}/10`;
+          renderActiveEmitters();
+          updateOverviewAndKPIs();
+        });
+
+        // Diagram layer toggles
+        el.toggleHeatmap.addEventListener('change', () => {
+          state.showHeatmap = el.toggleHeatmap.checked;
+          drawRoomDiagram();
+        });
+        el.toggleVectors.addEventListener('change', () => {
+          state.showVectors = el.toggleVectors.checked;
+          drawRoomDiagram();
+        });
+        el.toggleParticles.addEventListener('change', () => {
+          state.showParticles = el.toggleParticles.checked;
+          drawRoomDiagram();
+        });
+
+        // Pointer / Touch drag on room canvas
+        el.roomCanvas.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+
+        window.addEventListener('resize', () => {
+          drawRoomDiagram();
+          drawConcentrationGraph();
+        });
+      }
+
+      // ---------- Main Animation Loop ----------
+      let lastFrameTime = null;
+
+      function animationLoop(now) {
+        if (lastFrameTime === null) lastFrameTime = now;
+        const frameDt = Math.min((now - lastFrameTime) / 1000, 0.1);
+        lastFrameTime = now;
+
+        if (state.running) {
+          state.accumulator += frameDt;
+          while (state.accumulator >= DT_FIXED) {
+            state.simTime += DT_FIXED;
+            computeVelocityField();
+            stepOdorPhysics(DT_FIXED);
+            updateParticles(DT_FIXED);
+            state.accumulator -= DT_FIXED;
+          }
+          recordHistorySample(false);
+          updateOverviewAndKPIs();
+        }
+
+        drawRoomDiagram();
+        drawConcentrationGraph();
+        requestAnimationFrame(animationLoop);
+      }
+
+      // ---------- Bootstrap ----------
+      window.addEventListener('DOMContentLoaded', () => {
+        bindEvents();
+        populateDefaultRoom();
+        recordHistorySample(true);
+        updateOverviewAndKPIs();
+        drawRoomDiagram();
+        drawConcentrationGraph();
+        requestAnimationFrame(animationLoop);
+      });
+    })();
+  </script>
+</body>
+</html>
